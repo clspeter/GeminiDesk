@@ -2352,9 +2352,23 @@ function registerShortcuts() {
                 return;
             }
 
-            const shouldShow = userWindows.some(win => !win.isVisible());
+            const anyHidden = userWindows.some(win => !win.isVisible());
+            const anyFocused = userWindows.some(win => win.isFocused());
 
-            if (!shouldShow) {
+            // Determine the action to take:
+            // 1. If any windows are hidden -> show all
+            // 2. If showHidePrioritizeForeground is enabled and windows are visible but not focused -> bring to foreground
+            // 3. Otherwise -> hide all
+            let shouldShow = false;
+            let shouldBringToForeground = false;
+
+            if (anyHidden) {
+                shouldShow = true;
+            } else if (settings.showHidePrioritizeForeground && !anyFocused) {
+                shouldBringToForeground = true;
+            }
+
+            if (!shouldShow && !shouldBringToForeground) {
                 isUserTogglingHide = true;
                 setTimeout(() => { isUserTogglingHide = false; }, 500);
             }
@@ -2363,12 +2377,16 @@ function registerShortcuts() {
                 if (shouldShow) {
                     if (win.isMinimized()) win.restore();
                     win.show();
+                } else if (shouldBringToForeground) {
+                    // Bring to foreground without hiding
+                    if (win.isMinimized()) win.restore();
+                    win.show();
                 } else {
                     win.hide();
                 }
             });
 
-            if (shouldShow) {
+            if (shouldShow || shouldBringToForeground) {
                 const focused = userWindows.find(w => w.isFocused());
                 lastFocusedWindow = (focused && !focused.isDestroyed())
                     ? focused
